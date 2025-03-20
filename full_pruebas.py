@@ -7,13 +7,12 @@ from sklearn.metrics import confusion_matrix, classification_report
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 from torchvision import models
-from collections import Counter
 
 # ==========================
 # CONFIGURACIÓN
 # ==========================
-mel_dir_test = "Numero frances dataset\mel_Test_0"  # Carpeta de prueba
-model_path = "R-M-FINAL.pth"  # Modelo entrenado con 0, 1 y 2
+mel_dir_test = "Numero frances dataset/mel_Test_2"  # Carpeta de prueba
+model_path = "R-M-FINAL-v1.pth"  # Modelo entrenado con 0, 1 y 2
 batch_size = 16
 num_classes = 3  # Ajusta según las clases usadas en el entrenamiento
 
@@ -23,7 +22,21 @@ num_classes = 3  # Ajusta según las clases usadas en el entrenamiento
 class MelSpectrogramDataset(Dataset):
     def __init__(self, mel_dir):
         self.mel_files = [os.path.join(mel_dir, f) for f in os.listdir(mel_dir) if f.endswith('.npy')]
-        self.labels = [int(f.split("_")[0]) for f in os.listdir(mel_dir) if f.endswith('.npy')]
+        
+        # Aquí agregamos un manejo de errores en la conversión de etiquetas
+        self.labels = []
+        for f in os.listdir(mel_dir):
+            if f.endswith('.npy'):
+                # Intentar extraer la etiqueta numérica
+                try:
+                    label = int(f.split("_")[0])  # Intenta convertir el prefijo del archivo en un número
+                    self.labels.append(label)
+                except ValueError:
+                    print(f"⚠️ Advertencia: No se pudo convertir '{f.split('_')[0]}' a un número.")
+                    self.labels.append(-1)  # Puedes asignar un valor predeterminado en caso de error
+
+        # Verificación de etiquetas
+        print(f"Primeras etiquetas: {self.labels[:10]}")  # Imprimir las primeras etiquetas para ver si están correctas
 
     def __len__(self):
         return len(self.mel_files)
@@ -56,8 +69,8 @@ def evaluar_modelo(model, test_loader):
     with torch.no_grad():
         for mel_spec, labels in test_loader:
             mel_spec, labels = mel_spec.to(device), labels.to(device)
-            outputs = model(mel_spec.unsqueeze(1))
-            _, predicted = torch.max(outputs, 1)
+            outputs = model(mel_spec.unsqueeze(1))  # Asegúrate de agregar la dimensión del canal
+            _, predicted = torch.max(outputs, 1)            
             all_labels.extend(labels.cpu().numpy())
             all_preds.extend(predicted.cpu().numpy())
 
